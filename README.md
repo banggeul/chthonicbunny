@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/webrtc/apprtc.svg?branch=master)](https://travis-ci.org/webrtc/apprtc)
+# chthonic bunny
+Based on AppRTC demo code (details below)
 
 # AppRTC Demo Code
 
@@ -141,4 +142,4 @@ bq mk -t prod.analytics bigquery/analytics_schema.json
 
 [1] ICE Server provider
 AppRTC by default uses an ICE server provider to get TURN servers. Previously we used a [compute engine on demand service](https://github.com/juberti/computeengineondemand) (it created TURN server instances on demand in a region near the connecting users and stored them in shared memory) and web server with a REST API described in [draft-uberti-rtcweb-turn-rest-00](http://tools.ietf.org/html/draft-uberti-rtcweb-turn-rest-00). This has now been replaced with a Google service. It's similar from an AppRTC perspective but with a different [response format](https://github.com/webrtc/apprtc/blob/master/src/web_app/js/util.js#L77).
-# chthonic bunny
+
