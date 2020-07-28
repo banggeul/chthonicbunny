@@ -1,0 +1,369 @@
+From 6f492e31af789c1ab0e48c7b4b2c8450e3172704 Mon Sep 17 00:00:00 2001
+From: exitrip <edbear@ieee.org>
+Date: Fri, 12 Jun 2020 15:12:01 -0400
+Subject: [PATCH 1/2] got it working with app engine and collider on gcp
+
+---
+ Gruntfile.js                         |  5 ++--
+ build/gen_js_enums.py                |  1 -
+ src/app_engine/apprtc.py             | 15 ++++++------
+ src/app_engine/constants.py          | 36 ++++++++++++++++++++++------
+ src/collider/collider/room.go        |  2 +-
+ src/collider/collidermain/main.go    |  2 +-
+ src/web_app/css/main.css             | 11 +++++++++
+ src/web_app/html/index_template.html |  8 ++++++-
+ 8 files changed, 60 insertions(+), 20 deletions(-)
+
+diff --git a/Gruntfile.js b/Gruntfile.js
+index cbb2e1d..c8036e7 100644
+--- a/Gruntfile.js
++++ b/Gruntfile.js
+@@ -135,8 +135,8 @@ module.exports = function(grunt) {
+           // Destination: [source files]
+           'out/app_engine/js/apprtc.debug.js': [
+             'node_modules/webrtc-adapter/out/adapter.js',
+-            'src/web_app/js/analytics.js',
+-            'src/web_app/js/enums.js',
++            //'src/web_app/js/analytics.js',
++            //'src/web_app/js/enums.js',
+             'src/web_app/js/appcontroller.js',
+             'src/web_app/js/call.js',
+             'src/web_app/js/constants.js',
+@@ -150,6 +150,7 @@ module.exports = function(grunt) {
+             'src/web_app/js/storage.js',
+             'src/web_app/js/util.js',
+             'src/web_app/js/windowport.js',
++            'src/web_app/js/sketch.js',
+           ]
+         },
+         options: {
+diff --git a/build/gen_js_enums.py b/build/gen_js_enums.py
+index 2326aa1..762fd21 100644
+--- a/build/gen_js_enums.py
++++ b/build/gen_js_enums.py
+@@ -25,7 +25,6 @@ def main():
+   src_path, dst_path = args[0:2]
+   json_path = os.path.join(src_path, 'app_engine', 'bigquery')
+ 
+-
+   print src_path, '>>>', dst_path
+   outfile = os.path.join(dst_path, 'enums.js')
+   with open(outfile, 'w') as fp:
+diff --git a/src/app_engine/apprtc.py b/src/app_engine/apprtc.py
+index e845f49..46c4881 100755
+--- a/src/app_engine/apprtc.py
++++ b/src/app_engine/apprtc.py
+@@ -20,11 +20,11 @@ from google.appengine.api import app_identity
+ from google.appengine.api import memcache
+ from google.appengine.api import urlfetch
+ 
+-import analytics
+-import analytics_page
++#import analytics
++#import analytics_page
+ import compute_page
+ import constants
+-
++528
+ jinja_environment = jinja2.Environment(
+     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
+ 
+@@ -391,9 +391,10 @@ def add_client_to_room(request, room_id, client_id, is_loopback):
+           %(client_id, room_id, retries))
+ 
+       if room.get_occupancy() == 2:
+-        analytics.report_event(analytics.EventType.ROOM_SIZE_2,
+-                               room_id,
+-                               host=request.host)
++        pass
++        #analytics.report_event(analytics.EventType.ROOM_SIZE_2,
++        #                       room_id,
++        #                       host=request.host)
+       success = True
+       break
+     else:
+@@ -594,7 +595,7 @@ def checkIfRedirect(self):
+ 
+ app = webapp2.WSGIApplication([
+     ('/', MainPage),
+-    ('/a/', analytics_page.AnalyticsPage),
++    #('/a/', analytics_page.AnalyticsPage),
+     ('/compute/(\w+)/(\S+)/(\S+)', compute_page.ComputePage),
+     ('/join/([a-zA-Z0-9-_]+)', JoinPage),
+     ('/leave/([a-zA-Z0-9-_]+)/([a-zA-Z0-9-_]+)', LeavePage),
+diff --git a/src/app_engine/constants.py b/src/app_engine/constants.py
+index bf41002..942296c 100644
+--- a/src/app_engine/constants.py
++++ b/src/app_engine/constants.py
+@@ -20,7 +20,7 @@ LOOPBACK_CLIENT_ID = 'LOOPBACK_CLIENT_ID'
+ 
+ # Turn/Stun server override. This allows AppRTC to connect to turn servers
+ # directly rather than retrieving them from an ICE server provider.
+-ICE_SERVER_OVERRIDE = None
++#ICE_SERVER_OVERRIDE = None
+ # Enable by uncomment below and comment out above, then specify turn and stun
+ # ICE_SERVER_OVERRIDE  = [
+ #   {
+@@ -38,6 +38,21 @@ ICE_SERVER_OVERRIDE = None
+ #   }
+ # ]
+ 
++ICE_SERVER_OVERRIDE  = [
++   {
++     "urls": [
++       "turn:numb.viagenie.ca",
++     ],
++     "username": "webrtc@live.com",
++     "credential": "muazkh"
++   },
++   { 
++    "urls": [
++      "stun:stun1.l.google.com:19302"
++    ]
++   }
++]
++
+ ICE_SERVER_BASE_URL = 'https://networktraversal.googleapis.com'
+ ICE_SERVER_URL_TEMPLATE = '%s/v1alpha/iceconfig?key=%s'
+ ICE_SERVER_API_KEY = os.environ.get('ICE_SERVER_API_KEY')
+@@ -46,16 +61,23 @@ ICE_SERVER_API_KEY = os.environ.get('ICE_SERVER_API_KEY')
+ WSS_INSTANCE_HOST_KEY = 'host_port_pair'
+ WSS_INSTANCE_NAME_KEY = 'vm_name'
+ WSS_INSTANCE_ZONE_KEY = 'zone'
++#WSS_INSTANCES = [{
++#    WSS_INSTANCE_HOST_KEY: 'apprtc-ws.webrtc.org:443',
++#    WSS_INSTANCE_NAME_KEY: 'wsserver-std',
++#    WSS_INSTANCE_ZONE_KEY: 'us-central1-a'
++#}, {
++#    WSS_INSTANCE_HOST_KEY: 'apprtc-ws-2.webrtc.org:443',
++#    WSS_INSTANCE_NAME_KEY: 'wsserver-std-2',
++#    WSS_INSTANCE_ZONE_KEY: 'us-central1-f'
++#}]
++
+ WSS_INSTANCES = [{
+-    WSS_INSTANCE_HOST_KEY: 'apprtc-ws.webrtc.org:443',
+-    WSS_INSTANCE_NAME_KEY: 'wsserver-std',
++    WSS_INSTANCE_HOST_KEY: 'chthonic.dev:443',
++    WSS_INSTANCE_NAME_KEY: 'chthonic-vm-1',
+     WSS_INSTANCE_ZONE_KEY: 'us-central1-a'
+-}, {
+-    WSS_INSTANCE_HOST_KEY: 'apprtc-ws-2.webrtc.org:443',
+-    WSS_INSTANCE_NAME_KEY: 'wsserver-std-2',
+-    WSS_INSTANCE_ZONE_KEY: 'us-central1-f'
+ }]
+ 
++
+ WSS_HOST_PORT_PAIRS = [ins[WSS_INSTANCE_HOST_KEY] for ins in WSS_INSTANCES]
+ 
+ # memcache key for the active collider host.
+diff --git a/src/collider/collider/room.go b/src/collider/collider/room.go
+index 7fd5f33..34dda60 100644
+--- a/src/collider/collider/room.go
++++ b/src/collider/collider/room.go
+@@ -14,7 +14,7 @@ import (
+ 	"time"
+ )
+ 
+-const maxRoomCapacity = 2
++const maxRoomCapacity = 4
+ 
+ type room struct {
+ 	parent *roomTable
+diff --git a/src/collider/collidermain/main.go b/src/collider/collidermain/main.go
+index c1f253b..0772d21 100644
+--- a/src/collider/collidermain/main.go
++++ b/src/collider/collidermain/main.go
+@@ -13,7 +13,7 @@ import (
+ 
+ var tls = flag.Bool("tls", true, "whether TLS is used")
+ var port = flag.Int("port", 443, "The TCP port that the server listens on")
+-var roomSrv = flag.String("room-server", "https://appr.tc", "The origin of the room server")
++var roomSrv = flag.String("room-server", "http://localhost:8080", "The origin of the room server")
+ 
+ func main() {
+ 	flag.Parse()
+diff --git a/src/web_app/css/main.css b/src/web_app/css/main.css
+index bb11721..719fe43 100644
+--- a/src/web_app/css/main.css
++++ b/src/web_app/css/main.css
+@@ -6,6 +6,17 @@
+  *  tree.
+  */
+ 
++canvas{
++  position:absolute;
++  top:0;
++  left:0;
++  opacity:0.5;
++  width:50%;
++  height:50%;
++  z-index:3;
++  border: thin solid red;
++}
++
+ .hidden {
+   display: none;
+ }
+diff --git a/src/web_app/html/index_template.html b/src/web_app/html/index_template.html
+index 0fc3730..ad378de 100644
+--- a/src/web_app/html/index_template.html
++++ b/src/web_app/html/index_template.html
+@@ -21,7 +21,10 @@
+   <base target="_blank">
+ 
+   <title>AppRTC</title>
+-
++  
++  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.1/p5.min.js"></script>
++  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.1/addons/p5.dom.min.js"></script>
++  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.1/addons/p5.sound.min.js"></script>
+   <link rel="manifest" href="/manifest.json">
+   <link rel="icon" sizes="192x192" href="/images/webrtc-icon-192x192.png">
+ {% if not chromeapp %}
+@@ -32,6 +35,9 @@
+ </head>
+ 
+ <body>
++  
++  <div id="sketch-div">
++  </div>
+   <!--
+    * Keep the HTML id attributes in sync with |UI_CONSTANTS| defined in
+    * appcontroller.js.
+-- 
+2.17.1
+
+
+From 800c30e3d4d04ec863c7e9e056b260746961c540 Mon Sep 17 00:00:00 2001
+From: exitrip <edbear@ieee.org>
+Date: Sat, 13 Jun 2020 03:17:52 -0400
+Subject: [PATCH 2/2] demo css and sketch
+
+---
+ src/web_app/css/main.css |  8 ++--
+ src/web_app/js/sketch.js | 94 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 98 insertions(+), 4 deletions(-)
+ create mode 100644 src/web_app/js/sketch.js
+
+diff --git a/src/web_app/css/main.css b/src/web_app/css/main.css
+index 719fe43..d9df84c 100644
+--- a/src/web_app/css/main.css
++++ b/src/web_app/css/main.css
+@@ -8,11 +8,11 @@
+ 
+ canvas{
+   position:absolute;
+-  top:0;
+-  left:0;
++  top:10%;
++  left:10%;
+   opacity:0.5;
+-  width:50%;
+-  height:50%;
++  width:100%;
++  height:100%;
+   z-index:3;
+   border: thin solid red;
+ }
+diff --git a/src/web_app/js/sketch.js b/src/web_app/js/sketch.js
+new file mode 100644
+index 0000000..da09952
+--- /dev/null
++++ b/src/web_app/js/sketch.js
+@@ -0,0 +1,94 @@
++//See https://p5js.org/examples/ for more examples
++// and https://p5js.org/reference/ for reference
++var widthScale = 4
++var heightScale = 4
++var thisURL
++var osc, playing, freq, amp;
++
++function preload() {
++}
++
++function setup() { 
++  var canvas = createCanvas(windowWidth/widthScale, windowHeight/heightScale);
++  canvas.parent('sketch-div');
++  thisURL = getURL();
++  frameRate(30);
++  
++  textSize(24);
++  textAlign(CENTER, CENTER);
++  
++  canvas.mousePressed(playOscillator);
++  osc = new p5.Oscillator('sine');
++  osc2 = new p5.Oscillator('sine');
++  osc3 = new p5.Oscillator('sine');
++  
++  background(0,0,0);
++  
++} 
++
++function draw() { 
++  
++  freq = constrain(map(mouseX, 0, width, 100, 880), 100, 880);
++  amp = constrain(map(mouseY, height, 0, 0, 1), 0, 1);
++  
++  if (mouseIsPressed) {
++    text(thisURL, mouseX, mouseY);
++  } else {
++    text("Press r, g, or b", mouseX, mouseY);
++  }
++
++  if (playing) {
++    // smooth the transitions by 0.1 seconds
++    osc.freq(freq, 0.1);
++    osc.amp(amp, 0.1);
++    osc2.freq(freq*0.3333, 0.1);
++    osc2.amp(amp, 0.1);
++    osc3.freq(freq*1.5, 0.1);
++    osc3.amp(amp, 0.1);
++  }
++  
++}
++
++function playOscillator() {
++  // starting an oscillator on a user gesture will enable audio
++  // in browsers that have a strict autoplay policy.
++  // See also: userStartAudio();
++  osc.start();
++  osc2.start();
++  osc3.start();
++  playing = true;
++}
++
++function windowResized() {
++  resizeCanvas(windowWidth/widthScale, windowHeight/heightScale);
++}
++
++function mouseReleased() {
++  // ramp amplitude to 0 over 0.5 seconds
++  osc.amp(0, 0.5);
++  osc2.amp(0, 0.5);
++  osc3.amp(0, 0.5);
++  playing = false;
++  clear();
++}
++
++function touchStarted() {
++}
++
++function touchMoved() {
++} 
++
++function touchEnded(){
++}
++
++function keyTyped() {
++  if (key === 'r') {
++    background(255,0,0);
++  } else if (key === 'b') {
++    background(0,0,255);
++  } else if (key === 'g') {
++    background(0,255,0);
++  }
++  // uncomment to prevent any default behavior
++  // return false;
++}
+-- 
+2.17.1
